@@ -1,0 +1,108 @@
+name: Release
+
+# Publishing a version: bump `version` in Cargo.toml, add a CHANGELOG.md section, push to main.
+# This workflow notices the new version, builds x64 and ARM64, and publishes the GitHub release
+# (creating the vX.Y.Z tag).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$version is already released; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$version."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+          - target: aarch64-pc-windows-msvc
+            arch: arm64
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          rustflags: ""
+      - name: Test
+        if: matrix.arch == 'x64'
+        run: cargo test --locked
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Self-test
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          & "target/${{ matrix.target }}/release/driftwall.exe" --self-test --video tests/fixtures/colors.mp4 | Out-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "driftwall-v$($env:VERSION)-windows-${{ matrix.arch }}"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/driftwall.exe, README.md, LICENSE, CHANGELOG.md $name
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: driftwall-*.zip
+
+  publish:
+    needs: [version, windows]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and release notes
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum driftwall-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          awk -v v="## $VERSION" '$0 == v {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
+          cat notes.md
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" \
+            --title "Driftwall $VERSION" --notes-file notes.md
