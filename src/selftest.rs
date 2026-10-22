@@ -23,7 +23,7 @@ pub fn run() -> i32 {
             let dir =
                 std::env::temp_dir().join(format!("driftwall-selftest-{}", std::process::id()));
             let mut bmp = wic::Bitmap::black(64, 36);
-            for px in bmp.pixels.chunks_exact_mut(4) {
+            for px in bmp.pixels.as_chunks_mut::<4>().0.iter_mut() {
                 px[1] = 200;
             }
             let png = dir.join("t.png");

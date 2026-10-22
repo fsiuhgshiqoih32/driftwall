@@ -44,7 +44,7 @@ fn library_window_shots() {
             ("Deep water", [40, 90, 170]),
         ] {
             let mut b = wic::Bitmap::black(1920, 1080);
-            for (i, px) in b.pixels.chunks_exact_mut(4).enumerate() {
+            for (i, px) in b.pixels.as_chunks_mut::<4>().0.iter_mut().enumerate() {
                 let y = (i / 1920) as f32 / 1080.0;
                 px[0] = (rgb[2] as f32 * (1.0 - y * 0.6)) as u8;
                 px[1] = (rgb[1] as f32 * (1.0 - y * 0.5)) as u8;

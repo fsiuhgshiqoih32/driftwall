@@ -19,7 +19,7 @@ fn imports_videos_and_pictures() {
     mf::init_com_mta();
     let png = dir.join("in").join("sunset photo.png");
     let mut bmp = wic::Bitmap::black(800, 600);
-    for px in bmp.pixels.chunks_exact_mut(4) {
+    for px in bmp.pixels.as_chunks_mut::<4>().0.iter_mut() {
         px[2] = 220;
     }
     wic::save_png(&bmp, &png).unwrap();

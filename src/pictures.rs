@@ -409,7 +409,7 @@ fn apply_combined(
             } else {
                 let [r, g, b] = desktop_color();
                 let mut c = wic::Bitmap::black(w, h);
-                for px in c.pixels.chunks_exact_mut(4) {
+                for px in c.pixels.as_chunks_mut::<4>().0.iter_mut() {
                     px.copy_from_slice(&[b, g, r, 255]);
                 }
                 c
@@ -458,7 +458,7 @@ mod tests {
     fn blit_clips() {
         let mut dst = wic::Bitmap::black(4, 4);
         let mut src = wic::Bitmap::black(3, 3);
-        for px in src.pixels.chunks_exact_mut(4) {
+        for px in src.pixels.as_chunks_mut::<4>().0.iter_mut() {
             px[0] = 200;
         }
         blit(&mut dst, &src, 2, -1);

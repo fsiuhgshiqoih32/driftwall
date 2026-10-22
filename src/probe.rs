@@ -203,7 +203,7 @@ pub fn frame_at(path: &Path, at_ms: u64) -> Result<Bitmap> {
             dst.copy_from_slice(&data[start..start + row]);
         }
         buf.Unlock()?;
-        for px in out.pixels.chunks_exact_mut(4) {
+        for px in out.pixels.as_chunks_mut::<4>().0.iter_mut() {
             px[3] = 255;
         }
         Ok(out)

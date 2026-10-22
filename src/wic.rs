@@ -34,7 +34,7 @@ pub struct Bitmap {
 impl Bitmap {
     pub fn black(width: u32, height: u32) -> Self {
         let mut pixels = vec![0u8; width as usize * height as usize * 4];
-        for px in pixels.chunks_exact_mut(4) {
+        for px in pixels.as_chunks_mut::<4>().0.iter_mut() {
             px[3] = 255;
         }
         Self {
@@ -57,7 +57,7 @@ impl Bitmap {
     /// Straight RGBA, as egui wants it.
     pub fn to_rgba(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.pixels.len());
-        for px in self.pixels.chunks_exact(4) {
+        for px in self.pixels.as_chunks::<4>().0.iter() {
             out.extend_from_slice(&[px[2], px[1], px[0], 255]);
         }
         out
@@ -212,7 +212,7 @@ pub fn render_source(
         source.CopyPixels(&rect, stride as u32, &mut out.pixels[offset..offset + len])?;
     }
     // Transparent areas become black, not see-through.
-    for px in out.pixels.chunks_exact_mut(4) {
+    for px in out.pixels.as_chunks_mut::<4>().0.iter_mut() {
         px[3] = 255;
     }
     Ok(out)
